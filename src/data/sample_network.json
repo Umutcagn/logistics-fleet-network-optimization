@@ -1,0 +1,138 @@
+{
+  "transfer_centers": [
+    {
+      "id": "TC_IST_AN",
+      "name": "İstanbul Anadolu TM",
+      "ramps": 12,
+      "hourly_handling_capacity": 15000,
+      "has_truck_ramp": true,
+      "latitude": 40.91,
+      "longitude": 29.31
+    },
+    {
+      "id": "TC_IST_AV",
+      "name": "İstanbul Avrupa TM",
+      "ramps": 15,
+      "hourly_handling_capacity": 18000,
+      "has_truck_ramp": true,
+      "latitude": 41.04,
+      "longitude": 28.66
+    },
+    {
+      "id": "TC_ANK",
+      "name": "Ankara TM",
+      "ramps": 10,
+      "hourly_handling_capacity": 12000,
+      "has_truck_ramp": true,
+      "latitude": 39.93,
+      "longitude": 32.85
+    },
+    {
+      "id": "TC_IZM",
+      "name": "İzmir TM",
+      "ramps": 8,
+      "hourly_handling_capacity": 10000,
+      "has_truck_ramp": true,
+      "latitude": 38.42,
+      "longitude": 27.14
+    },
+    {
+      "id": "TC_BUR",
+      "name": "Bursa TM",
+      "ramps": 6,
+      "hourly_handling_capacity": 8000,
+      "has_truck_ramp": true,
+      "latitude": 40.18,
+      "longitude": 29.06
+    },
+    {
+      "id": "TC_ADA",
+      "name": "Adana TM",
+      "ramps": 5,
+      "hourly_handling_capacity": 7000,
+      "has_truck_ramp": true,
+      "latitude": 37.00,
+      "longitude": 35.32
+    },
+    {
+      "id": "TC_ANT",
+      "name": "Antalya TM",
+      "ramps": 4,
+      "hourly_handling_capacity": 6000,
+      "has_truck_ramp": false,
+      "latitude": 36.89,
+      "longitude": 30.71
+    },
+    {
+      "id": "TC_TRB",
+      "name": "Trabzon TM",
+      "ramps": 3,
+      "hourly_handling_capacity": 4500,
+      "has_truck_ramp": false,
+      "latitude": 41.00,
+      "longitude": 39.72
+    },
+    {
+      "id": "TC_DIY",
+      "name": "Diyarbakır TM",
+      "ramps": 4,
+      "hourly_handling_capacity": 5000,
+      "has_truck_ramp": true,
+      "latitude": 37.91,
+      "longitude": 40.23
+    },
+    {
+      "id": "TC_GAZ",
+      "name": "Gaziantep TM",
+      "ramps": 5,
+      "hourly_handling_capacity": 6500,
+      "has_truck_ramp": true,
+      "latitude": 37.06,
+      "longitude": 37.38
+    }
+  ],
+  "vehicle_types": {
+    "tir": {
+      "id": 1,
+      "name": "Tır",
+      "capacity": 3000,
+      "fixed_cost": 4500.0,
+      "cost_per_km": 18.5,
+      "min_fill_rate": 0.90,
+      "requires_truck_ramp": true
+    },
+    "kamyon": {
+      "id": 2,
+      "name": "Kamyon",
+      "capacity": 1500,
+      "fixed_cost": 2800.0,
+      "cost_per_km": 12.0,
+      "min_fill_rate": 0.85,
+      "requires_truck_ramp": false
+    },
+    "hafif_kamyon": {
+      "id": 3,
+      "name": "Hafif Kamyon",
+      "capacity": 800,
+      "fixed_cost": 1800.0,
+      "cost_per_km": 8.5,
+      "min_fill_rate": 0.80,
+      "requires_truck_ramp": false
+    },
+    "kamyonet": {
+      "id": 4,
+      "name": "Kamyonet",
+      "capacity": 400,
+      "fixed_cost": 1100.0,
+      "cost_per_km": 6.0,
+      "min_fill_rate": 0.80,
+      "requires_truck_ramp": false
+    }
+  },
+  "spot_vehicle_params": {
+    "capacity": 1500,
+    "fixed_markup": 1.45,
+    "variable_markup": 1.35
+  },
+  "holding_cost_per_desi": 2.5
+}

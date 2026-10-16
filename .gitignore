@@ -1,0 +1,29 @@
+# Security Guardrails
+*.env
+*.env.*
+*.key
+*.pem
+*token*
+*secret*
+*credential*
+
+# Python & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environments
+env/
+venv/
+.venv/
+
+# Editor & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log

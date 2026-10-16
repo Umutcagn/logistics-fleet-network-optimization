@@ -1,0 +1,11 @@
+id,name,ramps,hourly_handling_capacity,has_truck_ramp,latitude,longitude
+TC_IST_AN,İstanbul Anadolu TM,12,15000,True,40.91,29.31
+TC_IST_AV,İstanbul Avrupa TM,15,18000,True,41.04,28.66
+TC_ANK,Ankara TM,10,12000,True,39.93,32.85
+TC_IZM,İzmir TM,8,10000,True,38.42,27.14
+TC_BUR,Bursa TM,6,8000,True,40.18,29.06
+TC_ADA,Adana TM,5,7000,True,37.0,35.32
+TC_ANT,Antalya TM,4,6000,False,36.89,30.71
+TC_TRB,Trabzon TM,3,4500,False,41.0,39.72
+TC_DIY,Diyarbakır TM,4,5000,True,37.91,40.23
+TC_GAZ,Gaziantep TM,5,6500,True,37.06,37.38
