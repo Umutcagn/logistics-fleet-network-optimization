@@ -5,9 +5,9 @@
 [![Framework](https://img.shields.io/badge/PyTorch-2.0%2B-orange.svg)](https://pytorch.org/)
 [![LightGBM](https://img.shields.io/badge/LightGBM-4.0%2B-brightgreen.svg)](https://lightgbm.readthedocs.io/)
 [![OR-Tools](https://img.shields.io/badge/OR--Tools-SCIP%2FCBC-blue)](https://developers.google.com/optimization)
-[![Tests](https://img.shields.io/badge/tests-8%2F8%20passing-success)](tests/)
+[![Tests](https://github.com/Umutcagn/logistics-fleet-network-optimization/actions/workflows/tests.yml/badge.svg)](https://github.com/Umutcagn/logistics-fleet-network-optimization/actions/workflows/tests.yml)
 
-> **Entegre Makine Öğrenmesi (LightGBM + PyTorch LSTM), FSMVRP Rota Optimizasyonu (Google OR-Tools ILP / ALNS), PyTorch Geometric GNN Darboğaz Erken Uyarısı ve Sub-Agent Yönetişim Paneli.**
+> **Entegre Makine Öğrenmesi (LightGBM + PyTorch LSTM), FSMVRP Rota Optimizasyonu (Google OR-Tools ILP / ALNS), PyTorch tabanlı GNN Darboğaz Erken Uyarısı (prototip) ve Sub-Agent Yönetişim Paneli.**
 
 ---
 
@@ -41,7 +41,7 @@ graph TD
     E -->|>= 50 Güzergah| G[ALNS Heuristic Solver]
     F --> H[Spot / Filo Araç Ataması & Rampa / Kapasite Kısıtları]
     G --> H
-    H --> I[PyTorch Geometric GNN Darboğaz Erken Uyarı Katmanı]
+    H --> I[GNN Darboğaz Erken Uyarı Katmanı - prototip]
     I --> J[Sub-Agent Koordinasyon Sistemi]
     J --> K[Streamlit Karar Destek Dashboard & İnsan Onayı]
 ```
@@ -73,9 +73,14 @@ $$\min Z = \sum_{(k,m)} F_m \cdot Y_{mk} + \sum_{(i,j,k)} D_{ij} \cdot C_k \cdot
 
 - **Makine Öğrenmesi (ML)**: LightGBM (kısa vadeli kampanya etkileri) + PyTorch LSTM (30 günlük sliding window) + Stacking MetaLearner (WAPE bazlı dinamik ağırlıklandırma).
 - **Rota Optimizasyonu (FSMVRP)**: Google OR-Tools ILP SCIP/CBC Solver + Adaptive Large Neighborhood Search (ALNS) Heuristic.
-- **Graf Çizge Sinir Ağı (GNN)**: PyTorch Geometric tabanlı Transfer Merkezleri darboğaz erken uyarı sistemi (MARLHOSA prensibi).
+- **Graf Sinir Ağı (GNN)**: Düz PyTorch ile yazılmış, ortalama-komşu mesaj iletimli Transfer Merkezleri darboğaz erken uyarı modülü (MARLHOSA prensibi). ⚠️ Model ağırlıkları henüz eğitilmemiştir; skorlar sabit seed ile tekrarlanabilir ancak şu an için gerçek bir tahmin değildir.
 - **Sub-Agent & Human-in-the-Loop**: 3 uzman alt ajan (Talep, Optimizasyon, GNN) ve kritik kararlarda lojistik sorumlusu onay paneli.
 - **Arayüz**: Streamlit etkileşimli kontrol paneli.
+
+### ⚠️ Bilinen Sınırlamalar
+- Veriler sentetiktir (`src/data/synthetic_data_generator.py`); sonuçlar gerçek operasyon verisiyle doğrulanmamıştır.
+- `ortools` yüklü değilse ILP yerine sezgisel (heuristic) çözücüye, `lightgbm` yüklü değilse scikit-learn `HistGradientBoostingRegressor`'a sessizce geçilir.
+- GNN katmanı eğitilmemiş bir prototiptir (bkz. yukarı).
 
 ---
 

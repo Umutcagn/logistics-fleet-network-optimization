@@ -54,7 +54,7 @@ class GNNBottleneckDetector:
     
     Reference: Zhang & Pan (2024) MARLHOSA network analysis principle
     """
-    def __init__(self, network_config_path=None):
+    def __init__(self, network_config_path=None, seed=42):
         if network_config_path is None:
             network_config_path = Path(__file__).parent.parent / "data" / "sample_network.json"
             
@@ -65,6 +65,8 @@ class GNNBottleneckDetector:
         self.tc_ids = [tc["id"] for tc in self.transfer_centers]
         self.tc_idx_map = {tc_id: i for i, tc_id in enumerate(self.tc_ids)}
         
+        # NOTE: weights are not trained yet; seeding keeps the scores reproducible across runs
+        torch.manual_seed(seed)
         self.model = GraphNeuralNetworkModel(node_in_dim=4, hidden_dim=16)
 
     def _build_adj_matrix(self, routes_list):
@@ -101,7 +103,7 @@ class GNNBottleneckDetector:
             ])
             
         x_tensor = torch.tensor(node_features, dtype=torch.float32)
-        adj_tensor = self.build_adj_matrix(routes_list) if hasattr(self, 'build_adj_matrix') else self._build_adj_matrix(routes_list)
+        adj_tensor = self._build_adj_matrix(routes_list)
 
         self.model.eval()
         with torch.no_grad():
