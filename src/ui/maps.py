@@ -586,7 +586,9 @@ def render_interactive_3d_hub_map(tcs_data, opt_sol, gnn_risk_scores):
             }}
             .orbit-toggle:hover {{ background: rgba(56, 189, 248, 0.2); }}
 
-            /* Map Markers */
+            /* Map Markers: MapLibre positions .hub-marker-anchor with its own transform,
+               so all visual styling and scaling lives on the inner .hub-marker dot */
+            .hub-marker-anchor {{ cursor: pointer; }}
             .hub-marker {{
                 width: 18px; height: 18px; border-radius: 50%;
                 border: 2.5px solid #0f172a; cursor: pointer;
@@ -894,20 +896,23 @@ def render_interactive_3d_hub_map(tcs_data, opt_sol, gnn_risk_scores):
 
                 hubs.forEach(h => {{
                     const el = document.createElement('div');
-                    el.className = 'hub-marker';
-                    const color = h.risk_pct >= 70 ? '#ef4444' : (h.risk_pct >= 45 ? '#f59e0b' : '#10b981');
-                    el.style.backgroundColor = color;
-                    el.style.color = color;
+                    el.className = 'hub-marker-anchor';
                     el.title = h.name;
+                    const dot = document.createElement('div');
+                    dot.className = 'hub-marker';
+                    const color = h.risk_pct >= 70 ? '#ef4444' : (h.risk_pct >= 45 ? '#f59e0b' : '#10b981');
+                    dot.style.backgroundColor = color;
+                    dot.style.color = color;
                     const lbl = document.createElement('div');
                     lbl.className = 'hub-marker-label';
                     lbl.innerText = h.short;
-                    el.appendChild(lbl);
+                    dot.appendChild(lbl);
+                    el.appendChild(dot);
                     el.onclick = (e) => {{
                         e.stopPropagation();
                         focusHubCamera(h);
                     }};
-                    markersMap[h.id] = el;
+                    markersMap[h.id] = dot;
                     new maplibregl.Marker({{ element: el }})
                         .setLngLat([h.lon, h.lat])
                         .addTo(map);
