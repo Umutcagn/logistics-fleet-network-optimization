@@ -21,6 +21,11 @@ def test_ilp_solver_small_network():
     assert sol["status"] in ["OPTIMAL", "FEASIBLE", "GREEDY_FALLBACK"]
     assert sol["total_cost"] > 0
     assert sol["total_fleet_vehicles"] + sol["total_spot_vehicles"] >= 2
+    assert sol["assignments"]["TC_IST_AN->TC_ANK"]["demand_desi"] == 2400.0
+    assert sol["assignments"]["TC_IST_AV->TC_IZM"]["demand_desi"] == 1200.0
+    assert sol["avg_fill_rate_pct"] > 0
+    assert "TC_IST_AN" in sol["tc_utilization"]
+    assert sol["tc_utilization"]["TC_IST_AN"]["outbound_desi"] == 2400.0
 
 def test_alns_solver_large_network():
     data_gen = LogisticsDataGenerator()

@@ -193,21 +193,60 @@ class ALNSSolver:
         assignments = {}
         total_fleet = 0
         total_spot = 0
+        fill_rates = []
+        tc_outbound_desi = {tc_id: 0.0 for tc_id in self.transfer_centers}
+        tc_outbound_vehicles = {tc_id: 0 for tc_id in self.transfer_centers}
         
         for (i, j), data in best_sol.items():
             r_key = f"{i}->{j}"
+            dist = float(distance_matrix.get(i, {}).get(j, 100.0))
+            assigned_cap = data["spot"] * self.spot_params["capacity"]
+            for m, cnt in data["fleet"].items():
+                assigned_cap += cnt * self.vehicle_types[m]["capacity"]
+                
+            fill_rate = min(100.0, (float(data["demand"]) / assigned_cap * 100.0)) if assigned_cap > 0 else 0.0
+            fill_rates.append(fill_rate)
+
+            if i in tc_outbound_desi:
+                tc_outbound_desi[i] += float(data["demand"])
+                tc_outbound_vehicles[i] += data["spot"] + sum(data["fleet"].values())
+
             assignments[r_key] = {
-                "demand_desi": data["demand"],
+                "demand_desi": round(float(data["demand"]), 1),
+                "distance_km": round(dist, 1),
                 "fleet_vehicles": data["fleet"],
-                "spot_vehicles": data["spot"]
+                "spot_vehicles": data["spot"],
+                "assigned_capacity_desi": assigned_cap,
+                "fill_rate_pct": round(fill_rate, 1),
+                "route_cost_tl": round(float(data["cost"]), 2)
             }
             total_spot += data["spot"]
             total_fleet += sum(data["fleet"].values())
+
+        delta_t_hours = 8.0
+        tc_stats = {}
+        for tc_id, tc_info in self.transfer_centers.items():
+            out_desi = tc_outbound_desi.get(tc_id, 0.0)
+            out_veh = tc_outbound_vehicles.get(tc_id, 0)
+            max_handling = tc_info["hourly_handling_capacity"] * delta_t_hours
+            handling_pct = (out_desi / max_handling * 100.0) if max_handling > 0 else 0.0
+            tc_stats[tc_id] = {
+                "name": tc_info["name"],
+                "ramps_R_i": tc_info["ramps"],
+                "has_truck_ramp": tc_info.get("has_truck_ramp", True),
+                "dispatched_vehicles": out_veh,
+                "outbound_desi": round(out_desi, 1),
+                "shift_handling_cap_K4": round(max_handling, 0),
+                "k4_utilization_pct": round(handling_pct, 1),
+                "k4_status": "AŞIM RİSKİ" if handling_pct > 90.0 else ("YOĞUN" if handling_pct > 65.0 else "UYGUN")
+            }
 
         return {
             "status": "ALNS_OPTIMAL",
             "total_cost": round(best_cost, 2),
             "assignments": assignments,
             "total_fleet_vehicles": total_fleet,
-            "total_spot_vehicles": total_spot
+            "total_spot_vehicles": total_spot,
+            "avg_fill_rate_pct": round(sum(fill_rates) / len(fill_rates), 1) if fill_rates else 0.0,
+            "tc_utilization": tc_stats
         }

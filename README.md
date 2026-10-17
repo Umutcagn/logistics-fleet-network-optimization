@@ -83,8 +83,8 @@ $$\min Z = \sum_{(k,m)} F_m \cdot Y_{mk} + \sum_{(i,j,k)} D_{ij} \cdot C_k \cdot
 
 ```bash
 # Repository'yi klonlayın
-git clone https://github.com/kullanici-adi/teknofest-lojistik-optimizasyon.git
-cd teknofest-lojistik-optimizasyon
+git clone https://github.com/Umutcagn/logistics-fleet-network-optimization.git
+cd logistics-fleet-network-optimization
 
 # Gerekli paketleri yükleyin
 pip install -r requirements.txt

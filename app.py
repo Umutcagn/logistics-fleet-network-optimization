@@ -1,4 +1,7 @@
-from src.ui.dashboard import main
+import importlib
+import src.ui.dashboard as dashboard_module
+
+importlib.reload(dashboard_module)
 
 if __name__ == "__main__":
-    main()
+    dashboard_module.main()

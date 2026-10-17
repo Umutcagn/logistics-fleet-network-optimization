@@ -9,3 +9,5 @@ pytest
 scikit-learn
 matplotlib
 networkx
+plotly
+pydeck
