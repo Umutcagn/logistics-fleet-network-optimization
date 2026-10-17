@@ -21,16 +21,16 @@ def render_header(avg_fill, cons, is_stress_test, meta, opt_sol, stoch, val_wape
             </div>
         </div>
         <div class="page-title">TEKNOFEST Türkiye Ana Hat (Line-Haul) & Filo Optimizasyon Merkezi</div>
-        <p class="page-subtitle">Entegre Makine Öğrenmesi (LightGBM + PyTorch LSTM), FSMVRP Tamsayılı / ALNS Rota Optimizasyonu (K1–K6 Kısıtları) ve PyTorch GNN Darboğaz Erken Uyarı Mimarisi.</p>
+        <p class="page-subtitle">Entegre Makine Öğrenmesi (LightGBM + PyTorch LSTM), FSMVRP Tamsayılı Rota Optimizasyonu (K1, K3, K6 Kısıtları) ve PyTorch GNN Darboğaz Erken Uyarı Mimarisi.</p>
     </div>
     <div class="ticker-wrap">
         <div class="ticker-move">
-            <span style="color:#38bdf8;">● CANLI TELEMETRİ:</span>
+            <span style="color:#38bdf8;">● PLAN ÖZETİ (SENTETİK VERİ):</span>
             &nbsp;&nbsp;🚛 <b>Aktif Öz Filo:</b> {opt_sol['total_fleet_vehicles']} Araç (K3 Rampa Uyumlu)
             &nbsp;&nbsp;|&nbsp;&nbsp;📦 <b>Ortalama K5 Filo Doluluk:</b> %{avg_fill:.1f}
             &nbsp;&nbsp;|&nbsp;&nbsp;🎯 <b>Stacking MetaLearner WAPE:</b> %{val_wape * 100:.2f} (w1={meta.w1:.2f}, w2={meta.w2:.2f})
             &nbsp;&nbsp;|&nbsp;&nbsp;🔄 <b>Faz 2 Hub Konsolidasyonu:</b> {cons.get('active_consolidations_count', 0)} Birleşik Hat ({cons.get('total_estimated_savings_tl', 0):,.0f} TL Tasarruf)
-            &nbsp;&nbsp;|&nbsp;&nbsp;🎲 <b>2-Aşamalı Stokastik Beklenen Maliyet:</b> {stoch['expected_cost']:,.0f} TL
+            &nbsp;&nbsp;|&nbsp;&nbsp;🎲 <b>Senaryo Bazlı Beklenen Maliyet:</b> {stoch['expected_cost']:,.0f} TL
             &nbsp;&nbsp;|&nbsp;&nbsp;🧠 <b>PyTorch GNN Darboğaz Radarı:</b> 10 Transfer Merkezi Aktif İzleniyor
         </div>
     </div>
@@ -76,11 +76,11 @@ def render_header(avg_fill, cons, is_stress_test, meta, opt_sol, stoch, val_wape
         </div>
         <div class="kpi-card">
             <div class="kpi-header">
-                <div class="kpi-title">Filo Doluluk (K5)</div>
+                <div class="kpi-title">Ortalama Filo Doluluğu</div>
                 <div class="kpi-icon">📦</div>
             </div>
             <div class="kpi-value">%{avg_fill:.1f}</div>
-            <span class="kpi-badge badge-green">K5 Tolerans (1-α)</span>
+            <span class="kpi-badge badge-green">Talep / Atanan Kapasite</span>
         </div>
         <div class="kpi-card">
             <div class="kpi-header">
@@ -88,7 +88,7 @@ def render_header(avg_fill, cons, is_stress_test, meta, opt_sol, stoch, val_wape
                 <div class="kpi-icon">🎲</div>
             </div>
             <div class="kpi-value">{stoch['expected_cost']:,.0f} <span style="font-size:0.9rem; opacity:0.7;">TL</span></div>
-            <span class="kpi-badge badge-gold">2-Stage Benders</span>
+            <span class="kpi-badge badge-gold">3 Senaryo Ağırlıklı</span>
         </div>
     </div>
     """, unsafe_allow_html=True)

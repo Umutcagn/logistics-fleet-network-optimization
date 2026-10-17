@@ -118,7 +118,7 @@ def run_full_pipeline(num_days=30, verbose=True):
         print(f"   -> Tahmini Konsolidasyon Tasarrufu: {cons_res['total_estimated_savings_tl']:,.2f} TL")
 
     # Stochastic Programming (Faz 2)
-    if verbose: print("[5.1/7] Faz 2 Stokastik Senaryo Ağacı (Benders) Değerlendiriliyor...")
+    if verbose: print("[5.1/7] Faz 2 Senaryo Bazlı Beklenen Maliyet Hesaplanıyor...")
     stoch_optimizer = StochasticScenarioOptimizer(ilp_solver, alns_solver)
     routes_list = list(demand_dict.keys())
     stoch_res = stoch_optimizer.optimize_scenarios(intervals, routes_list, data_gen.distance_matrix, spot_costs)

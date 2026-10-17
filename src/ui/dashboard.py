@@ -151,7 +151,7 @@ def main():
     stoch = data["stochastic"]
     gnn_res = data["gnn_result"]
     report = data["coordinator_report"]
-    avg_fill = opt_sol.get("avg_fill_rate_pct", 88.5)
+    avg_fill = opt_sol.get("avg_fill_rate_pct", 0.0)
 
     # ── Hero Header Banner ──
     render_header(avg_fill, cons, is_stress_test, meta, opt_sol, stoch, val_wape)
@@ -165,7 +165,7 @@ def main():
     # ── Structured Tabs ──
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📊 ML Tahmin Katmanı", 
-        "🚛 FSMVRP & K1-K5 Kısıtları", 
+        "🚛 FSMVRP Filo Ataması", 
         "🔄 Faz 2 Hub & Stokastik",
         "🧠 GNN Darboğaz Erken Uyarısı", 
         "🤖 Sub-Agent & İnsan Onayı",

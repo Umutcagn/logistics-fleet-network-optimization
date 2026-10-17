@@ -6,7 +6,9 @@ class StochasticScenarioOptimizer:
     Two-Stage Stochastic Programming under Demand Uncertainty (Faz 2).
     Evaluates expected solution costs across Optimistic, Base, and Pessimistic scenario trees.
     
-    Reference: Taherkhani et al. (2025) [Two-Stage Stochastic Programming & Benders Decomposition]
+    Solves each demand scenario independently and reports the probability-weighted cost
+    (a scenario-based expected cost, not a two-stage model or Benders decomposition).
+    Background reading: Taherkhani et al. (2025), two-stage stochastic programming.
     """
     def __init__(self, ilp_solver=None, alns_solver=None):
         self.ilp_solver = ilp_solver or FSMVRP_ILPSolver()

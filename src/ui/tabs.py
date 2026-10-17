@@ -71,7 +71,7 @@ def render_ml_forecast_tab(data, meta, model_wapes, val_wape):
 
 def render_fleet_routing_tab(avg_fill, df_assignments, opt_sol):
     """Tab 2: FSMVRP fleet assignment table and constraint views."""
-    st.markdown("#### 1. FSMVRP Araç Atama, Kapasite (K1–K2) & Doluluk Toleransı (K5) Tablosu")
+    st.markdown("#### 1. FSMVRP Araç Atama, Talep Karşılama (K1) & Doluluk Tablosu")
     st.caption(f"Aktif Çözücü Algoritması: **{opt_sol['status']}** (Google OR-Tools ILP / ALNS) | K5 Ortalama Filo Doluluk: **%{avg_fill:.1f}**")
     
     display_cols = [
@@ -85,7 +85,7 @@ def render_fleet_routing_tab(avg_fill, df_assignments, opt_sol):
         column_config={
             "Doluluk K5 (%)": st.column_config.ProgressColumn(
                 "K5 Doluluk Oranı (%)",
-                help="Rapordaki K5 Doluluk Toleransı (1 - alpha_m)",
+                help="Talep / atanan kapasite. K5 (minimum doluluk) modelde kısıt olarak uygulanmaz, yalnızca raporlanır.",
                 format="%.1f%%",
                 min_value=0,
                 max_value=100
@@ -157,7 +157,7 @@ def render_fleet_routing_tab(avg_fill, df_assignments, opt_sol):
 
 def render_hub_stochastic_tab(cons, stoch):
     """Tab 3: hub consolidation and stochastic scenarios."""
-    st.markdown("#### Hub Konsolidasyonu ve 2-Aşamalı Stokastik Programlama")
+    st.markdown("#### Hub Konsolidasyonu ve Senaryo Bazlı Maliyet Analizi")
     col_c1, col_c2 = st.columns(2, gap="medium")
     active_cons_cnt = cons.get("active_consolidations_count", cons.get("total_opportunities", 0))
     cons_savings = cons.get("total_estimated_savings_tl", 0.0)
@@ -202,7 +202,7 @@ def render_hub_stochastic_tab(cons, stoch):
                 df_sc, x="Senaryo", y="Senaryo Maliyeti (TL)", color="Senaryo",
                 text_auto=".3s",
                 color_discrete_sequence=["#10b981", "#38bdf8", "#f59e0b"],
-                title="2-Aşamalı Stokastik Senaryo Maliyet Kırılımı"
+                title="Senaryo Bazlı Maliyet Kırılımı"
             )
             fig_sc.update_layout(
                 height=290, margin=dict(l=10, r=10, t=35, b=10),
