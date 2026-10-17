@@ -1,3 +1,5 @@
+from src.optimization.fsmvrp_ilp import ILP_ROUTE_LIMIT
+
 class OptimizationAgent:
     """
     Sub-Agent 2: Rota ve Filo Optimizasyonu Sub-Agent'ı
@@ -10,7 +12,7 @@ class OptimizationAgent:
     def run_optimization(self, demand_dict, distance_matrix, spot_costs, backlogs_wit):
         route_count = len(demand_dict)
         
-        if route_count < 50:
+        if route_count < ILP_ROUTE_LIMIT:
             sol = self.ilp_solver.solve(demand_dict, distance_matrix, spot_costs, backlogs_wit)
         else:
             sol = self.alns_solver.solve(demand_dict, distance_matrix, spot_costs)
@@ -19,7 +21,7 @@ class OptimizationAgent:
         spot_ratio = (sol["total_spot_vehicles"] / max(1, total_v)) * 100
 
         summary = {
-            "solver_used": "OR-Tools ILP" if route_count < 50 else "ALNS Heuristic",
+            "solver_used": "OR-Tools ILP" if route_count < ILP_ROUTE_LIMIT else "ALNS Heuristic",
             "total_cost_tl": sol["total_cost"],
             "total_fleet_vehicles": sol["total_fleet_vehicles"],
             "total_spot_vehicles": sol["total_spot_vehicles"],

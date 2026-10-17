@@ -12,7 +12,7 @@ from src.ml.lightgbm_model import LightGBMForecaster
 from src.ml.lstm_model import PyTorchLSTMForecaster
 from src.ml.meta_learner import StackingMetaLearner, calculate_wape
 from src.ml.dynamic_inventory import BacklogTracker
-from src.optimization.fsmvrp_ilp import FSMVRP_ILPSolver
+from src.optimization.fsmvrp_ilp import FSMVRP_ILPSolver, ILP_ROUTE_LIMIT
 from src.optimization.alns_solver import ALNSSolver
 from src.optimization.hub_consolidation import HubConsolidator
 from src.optimization.stochastic_scenarios import StochasticScenarioOptimizer
@@ -51,18 +51,33 @@ def run_full_pipeline(num_days=30, verbose=True):
     lgb_model.fit(df_train)
     lgb_val_preds = lgb_model.predict(df_val)
     
-    lstm_model = PyTorchLSTMForecaster(sequence_length=14, epochs=10)
+    lstm_model = PyTorchLSTMForecaster(sequence_length=14)
     lstm_model.fit(df_train)
     lstm_val_preds = lstm_model.predict(df_val)
-    
-    # MetaLearner Stacking
+
+    # MetaLearner Stacking: weights are chosen on the first 3 validation days and
+    # WAPE is reported on the last 2 days, so the reported score is out-of-sample
+    weight_mask = (df_val["date"] <= max_date - pd.Timedelta(days=2)).values
+    holdout_mask = ~weight_mask
+    actual_val = df_val["actual_desi"].values
     meta_learner = StackingMetaLearner()
-    meta_learner.fit_weights(df_val["actual_desi"].values, lgb_val_preds, lstm_val_preds)
+    meta_learner.fit_weights(actual_val[weight_mask], lgb_val_preds[weight_mask], lstm_val_preds[weight_mask])
     ensemble_val_preds = meta_learner.predict(lgb_val_preds, lstm_val_preds)
-    
-    val_wape = calculate_wape(df_val["actual_desi"].values, ensemble_val_preds)
+
+    val_wape = calculate_wape(actual_val[holdout_mask], ensemble_val_preds[holdout_mask])
+    model_wapes = {
+        "ensemble": val_wape,
+        "lightgbm": calculate_wape(actual_val[holdout_mask], lgb_val_preds[holdout_mask]),
+        "lstm": calculate_wape(actual_val[holdout_mask], lstm_val_preds[holdout_mask]),
+        "naive_lag_1": calculate_wape(actual_val[holdout_mask], df_val["lag_1"].values[holdout_mask]),
+    }
+    df_forecast = df_val[["date", "origin_id", "dest_id", "actual_desi"]].copy()
+    df_forecast["lightgbm_pred"] = lgb_val_preds
+    df_forecast["lstm_pred"] = lstm_val_preds
+    df_forecast["ensemble_pred"] = ensemble_val_preds
     if verbose:
-        print(f"   -> Validation WAPE Skoru: {val_wape:.4f} (%{val_wape * 100:.2f})")
+        print(f"   -> Holdout WAPE Skoru (son 2 gün): {val_wape:.4f} (%{val_wape * 100:.2f})")
+        print(f"   -> Model WAPE: " + ", ".join(f"{k}={v:.4f}" for k, v in model_wapes.items()))
         print(f"   -> MetaLearner Ağırlıkları: LightGBM (w1)={meta_learner.w1}, LSTM (w2)={meta_learner.w2}")
 
     # Generate Prediction Intervals for Stochastic Model
@@ -75,7 +90,7 @@ def run_full_pipeline(num_days=30, verbose=True):
     
     # Select target single day for routing optimization
     target_day_df = df_val[df_val["date"] == max_date].copy()
-    target_day_df["ensemble_pred"] = ensemble_val_preds[-len(target_day_df):]
+    target_day_df["ensemble_pred"] = ensemble_val_preds[(df_val["date"] == max_date).values]
     
     demand_dict = {(row["origin_id"], row["dest_id"]): row["ensemble_pred"] for _, row in target_day_df.iterrows()}
     spot_costs = {(row["origin_id"], row["dest_id"]): row["spot_cost_s_ij"] for _, row in target_day_df.iterrows()}
@@ -84,7 +99,7 @@ def run_full_pipeline(num_days=30, verbose=True):
     backlog_tracker = BacklogTracker(data_gen.transfer_centers)
     current_backlogs = backlog_tracker.get_current_backlog()
 
-    if len(demand_dict) < 50:
+    if len(demand_dict) < ILP_ROUTE_LIMIT:
         opt_solution = ilp_solver.solve(demand_dict, data_gen.distance_matrix, spot_costs, current_backlogs)
     else:
         opt_solution = alns_solver.solve(demand_dict, data_gen.distance_matrix, spot_costs)
@@ -147,8 +162,11 @@ def run_full_pipeline(num_days=30, verbose=True):
         "df_routes": df_routes,
         "df_wit": df_wit,
         "val_wape": val_wape,
+        "model_wapes": model_wapes,
+        "df_forecast": df_forecast,
         "meta_learner": meta_learner,
         "opt_solution": opt_solution,
+        "opt_inputs": {"demand": demand_dict, "spot_costs": spot_costs},
         "consolidation": cons_res,
         "stochastic": stoch_res,
         "gnn_result": gnn_res,

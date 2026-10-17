@@ -38,11 +38,11 @@ class FeatureEngineer:
         df["rolling_mean_7"] = grouped.transform(lambda x: x.shift(1).rolling(window=7, min_periods=1).mean())
         df["rolling_mean_14"] = grouped.transform(lambda x: x.shift(1).rolling(window=14, min_periods=1).mean())
         
-        # Fill NA values for early time steps using overall mean or actual_desi
-        df["lag_1"] = df["lag_1"].fillna(df["actual_desi"])
-        df["lag_7"] = df["lag_7"].fillna(df["actual_desi"])
-        df["rolling_mean_7"] = df["rolling_mean_7"].fillna(df["actual_desi"])
-        df["rolling_mean_14"] = df["rolling_mean_14"].fillna(df["actual_desi"])
+        # Fill early-step gaps from past-only statistics (never from the target itself).
+        # The first day of each route has no history and stays NaN; both LightGBM and
+        # HistGradientBoosting handle missing values natively.
+        df["lag_7"] = df["lag_7"].fillna(df["rolling_mean_7"])
+        df["rolling_mean_14"] = df["rolling_mean_14"].fillna(df["rolling_mean_7"])
         
         return df
 

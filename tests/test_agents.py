@@ -37,3 +37,20 @@ def test_main_coordinator_flow():
     assert "optimization_summary" in report
     assert "gnn_summary" in report
     assert "requires_human_approval" in report
+
+
+def test_target_day_demand_matches_route_forecasts():
+    from run_pipeline import run_full_pipeline
+
+    data = run_full_pipeline(num_days=30, verbose=False)
+    fc = data["df_forecast"]
+    target = fc[fc["date"] == fc["date"].max()]
+    expected = {(r.origin_id, r.dest_id): r.ensemble_pred for r in target.itertuples()}
+    gnn_incoming = data["gnn_inputs"]["incoming"]
+    for dest_id, total in target.groupby("dest_id")["ensemble_pred"].sum().items():
+        assert abs(gnn_incoming[dest_id] - total) < 1e-6
+    assignments = data["opt_solution"]["assignments"]
+    for (orig, dest), demand in expected.items():
+        key = f"{orig}->{dest}"
+        if key in assignments:
+            assert abs(assignments[key]["demand_desi"] - demand) < 1.0

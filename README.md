@@ -36,10 +36,9 @@ graph TD
     A[Geçmiş Veri & Stok Değişkeni W_it] --> B[Makine Öğrenmesi Tahmin Katmanı]
     B -->|LightGBM & LSTM Ensemble| C[Tahmin & Belirsizlik Aralığı D_it]
     C --> D[Tahmin-Optimizasyon Entegrasyonu & WAPE Feedback]
-    D --> E{Güzergah Sayısı}
-    E -->|< 50 Güzergah| F[Google OR-Tools ILP Solver]
-    E -->|>= 50 Güzergah| G[ALNS Heuristic Solver]
-    F --> H[Spot / Filo Araç Ataması & Rampa / Kapasite Kısıtları]
+    D --> F[Google OR-Tools ILP Solver - K1, K3, K6]
+    F -->|K3 çözümsüzse| G[Uyarılı Sezgisel Yedek Plan]
+    F --> H[Spot / Filo Araç Ataması]
     G --> H
     H --> I[PyTorch GNN Darboğaz Erken Uyarı Katmanı]
     I --> J[Sub-Agent Koordinasyon Sistemi]
@@ -60,6 +59,9 @@ $$\min Z = \sum_{(k,m)} F_m \cdot Y_{mk} + \sum_{(i,j,k)} D_{ij} \cdot C_k \cdot
 - $\beta$: Birim desi başına Transfer Merkezi bekleme ve elleçleme maliyeti
 
 ### 2. Kısıtlar
+
+> **Uygulama durumu:** ILP modeli şu an **K1, K3 ve K6**'yı kısıt olarak uygular. K3, her çıkış merkezinden günlük sevk edilen araç sayısını `rampa sayısı × 6 yükleme dalgası` ile sınırlar; tır rampası olmayan merkezlerde tır değişkenleri 0'a sabitlenir. **K4** kısıt olarak modelde yoktur, çözümden sonra merkez bazında kullanım oranı olarak raporlanır. **K2 ve K5** henüz uygulanmamıştır.
+
 - **K1 (Talep Karşılama)**: $\sum_m (\text{cap}_m \cdot X_{ijk} \cdot Y_{mk}) + \text{cap}_{spot} \cdot Z_{spot\_it} \ge \hat{D}_{it} \quad \forall(i,j,t)$
 - **K2 (Araç Kapasitesi)**: $l_{ij} \le \sum_m \text{cap}_m \cdot X_{ijk} \cdot Y_{mk} \quad \forall(i,j,k)$
 - **K3 (Rampa Kısıtı)**: Tır rampası olmayan merkeze otomatik küçük araç ataması ($\sum_k W_{itk} \le R_i$).
@@ -71,8 +73,8 @@ $$\min Z = \sum_{(k,m)} F_m \cdot Y_{mk} + \sum_{(i,j,k)} D_{ij} \cdot C_k \cdot
 
 ## 🛠️ Özellikler & Teknolojiler
 
-- **Makine Öğrenmesi (ML)**: LightGBM (kısa vadeli kampanya etkileri) + PyTorch LSTM (30 günlük sliding window) + Stacking MetaLearner (WAPE bazlı dinamik ağırlıklandırma).
-- **Rota Optimizasyonu (FSMVRP)**: Google OR-Tools ILP SCIP/CBC Solver + Adaptive Large Neighborhood Search (ALNS) Heuristic.
+- **Makine Öğrenmesi (ML)**: LightGBM (lag/rolling ve takvim özellikleri) + PyTorch LSTM (14 günlük kayan pencere, güzergah bazlı ölçekleme, bir gün sonrası tahmini) + Stacking MetaLearner (WAPE bazlı ağırlıklandırma). Bkz. [Tahmin Katmanı](#-tahmin-katmanı-değerlendirmesi).
+- **Rota Optimizasyonu (FSMVRP)**: Google OR-Tools ILP (SCIP/CBC) ana çözücüdür. ALNS sezgisel çözücüsü karşılaştırma ve çok büyük ağlar için tutulur. Bkz. [Çözücü Karşılaştırması](#-çözücü-karşılaştırması-ilp-vs-alns).
 - **Graf Sinir Ağı (GNN)**: Düz PyTorch ile yazılmış, ortalama-komşu mesaj iletimli Transfer Merkezleri darboğaz erken uyarı modeli (MARLHOSA prensibi). Sentetik ağ senaryolarıyla eğitilmiştir (bkz. [GNN Eğitimi](#-gnn-eğitimi-ve-değerlendirme)).
 - **Sub-Agent & Human-in-the-Loop**: 3 uzman alt ajan (Talep, Optimizasyon, GNN) ve kritik kararlarda lojistik sorumlusu onay paneli.
 - **Arayüz**: Streamlit etkileşimli kontrol paneli.
@@ -80,6 +82,8 @@ $$\min Z = \sum_{(k,m)} F_m \cdot Y_{mk} + \sum_{(i,j,k)} D_{ij} \cdot C_k \cdot
 ### ⚠️ Bilinen Sınırlamalar
 - Veriler sentetiktir (`src/data/synthetic_data_generator.py`); sonuçlar gerçek operasyon verisiyle doğrulanmamıştır.
 - `ortools` yüklü değilse ILP yerine sezgisel (heuristic) çözücüye, `lightgbm` yüklü değilse scikit-learn `HistGradientBoostingRegressor`'a sessizce geçilir.
+- ALNS rampa kısıtını (K3) uygulamaz ve her güzergaha tek tip araç atar.
+- Tahmin bandı (P10–P90), gerçek hata dağılımından değil, ±%12 standart sapma varsayımından üretilir.
 - GNN, gerçek darboğaz kayıtlarıyla değil, açık bir kapasite/taşma kuralıyla etiketlenmiş sentetik senaryolarla eğitilmiştir; yani bu kuralı öğrenir, gerçek operasyondan öğrenilmiş bir model değildir.
 
 ---
@@ -112,6 +116,50 @@ Tarayıcınızda `http://localhost:8501` adresine gidin.
 
 ---
 
+## 📈 Tahmin Katmanı Değerlendirmesi
+
+Son 5 gün doğrulama verisidir. MetaLearner ağırlıkları ilk 3 günde seçilir, WAPE ise ağırlık seçimine katılmayan **son 2 günde** (180 güzergah-gün) ölçülür. Tüm modeller "bir gün sonrası" tahmini yapar: her gün için yalnızca önceki günlerin gerçekleşen değerleri kullanılır.
+
+| Model (30 günlük veri, `python run_pipeline.py`) | Holdout WAPE |
+|---|---|
+| **Ensemble (w1=0.55 LightGBM, w2=0.45 LSTM)** | **%10.6** |
+| LightGBM | %13.9 |
+| Naif tahmin (dünün değeri) | %14.2 |
+| LSTM | %15.0 |
+
+Ensemble, tek başına modellerin ve naif tahminin önündedir. Bu tek bir holdout penceresi olduğundan sonuçlar gürültülüdür; daha uzun geçmişte (60–90 gün) LightGBM belirgin şekilde güçlenir ve MetaLearner LSTM ağırlığını düşürür.
+
+---
+
+## ⚖️ Çözücü Karşılaştırması (ILP vs ALNS)
+
+İki çözücü aynı maliyet fonksiyonuyla, sentetik veriden alınan 5 farklı gün, 4 güzergah sayısı ve 3 talep seviyesinde karşılaştırıldı (toplam 60 örnek):
+
+```bash
+python -m benchmarks.solver_benchmark   # sonuçlar: benchmarks/solver_benchmark_results.json
+```
+
+| Güzergah | Talep | ILP optimal | ILP çözümsüz (K3) | ALNS ort. maliyet farkı | ALNS maks. fark | ILP süre (sn) | ALNS süre (sn) | ALNS K3 ihlali |
+|---|---|---|---|---|---|---|---|---|
+| 10 | 1x | 5/5 | 0/5 | +%1.81 | +%12.69 | 0.010 | 0.017 | 0/5 |
+| 10 | 2x | 5/5 | 0/5 | +%17.40 | +%22.83 | 0.008 | 0.016 | 0/5 |
+| 10 | 3x | 4/5 | 1/5 | +%7.16 | +%12.94 | 0.010 | 0.016 | 1/5 |
+| 30 | 1x | 5/5 | 0/5 | +%6.22 | +%12.84 | 0.011 | 0.047 | 0/5 |
+| 30 | 2x | 4/5 | 1/5 | +%14.85 | +%16.62 | 0.011 | 0.048 | 1/5 |
+| 30 | 3x | 0/5 | 5/5 | — | — | 0.008 | 0.048 | 5/5 |
+| 50 | 1x | 5/5 | 0/5 | +%4.64 | +%9.14 | 0.014 | 0.082 | 0/5 |
+| 50 | 2x | 4/5 | 1/5 | +%12.82 | +%13.75 | 0.016 | 0.083 | 1/5 |
+| 50 | 3x | 0/5 | 5/5 | — | — | 0.009 | 0.081 | 5/5 |
+| 90 | 1x | 5/5 | 0/5 | +%6.51 | +%11.60 | 0.022 | 0.148 | 0/5 |
+| 90 | 2x | 0/5 | 5/5 | — | — | 0.019 | 0.143 | 5/5 |
+| 90 | 3x | 0/5 | 5/5 | — | — | 0.008 | 0.143 | 5/5 |
+
+Örnek bazlı sonuçlar `benchmarks/solver_benchmark_results.json` dosyasındadır. ILP'nin çözümsüz olduğu satırlarda optimum maliyet tanımsız olduğundan fark hesaplanmaz. Çıkarımlar:
+- ILP, 90 güzergahlı ağın tamamını **~0.02 saniyede kanıtlanmış optimumla** çözer; ALNS hem daha yavaş hem ortalama %2–17 daha pahalıdır. Bu yüzden eski "≥ 50 güzergahta ALNS" kuralı kaldırıldı ve ILP tüm ağ için kullanılır (`ILP_ROUTE_LIMIT`). Hedef gün için plan maliyeti bu değişiklikle 1.281.464 TL'den 1.188.264 TL'ye düştü (−%7,3).
+- Talep 2 katına çıktığında tır rampası olmayan Antalya ve Trabzon'un, 3 katına çıktığında ise ek olarak az rampalı Adana ve Diyarbakır'ın rampa kapasitesi (K3) talebi taşıyamaz ve problem çözümsüz hale gelir. ILP bu durumda boş plan döndürmek yerine açık bir uyarıyla sezgisel yedek plana geçer. ALNS ise K3'ü bilmediği için bu durumda **uyarı vermeden ihlal eden planlar** üretir.
+
+---
+
 ## 🧠 GNN Eğitimi ve Değerlendirme
 
 Gerçek etiketli darboğaz verisi olmadığından etiketler açık bir kuraldan üretilir. Bir transfer merkezi, kendi 12 saatlik yük oranı ile aşırı yüklü komşularından taşan yükün toplamı kapasitesine ulaştığında darboğaz sayılır:
@@ -133,7 +181,7 @@ Test seti (20.000 düğüm) sonuçları, komşuları görmeyen eşik kuralıyla 
 
 GNN'in kazancı tamamen graf yapısından gelir: yalnızca kendi yüküne bakan bir kural, komşu merkezlerden taşan yükü göremez.
 
-> Not: Pipeline'ın ürettiği mevcut sentetik talepte merkezlerin yük oranı %6–24 arasındadır; talep 3 katına çıksa bile (dashboard stres modu) kapasite aşılmaz ve model alarm üretmez.
+> Not: Pipeline'ın ürettiği mevcut sentetik talepte merkezlerin 12 saatlik elleçleme yük oranı %6–24 arasındadır; talep 3 katına çıksa bile elleçleme kapasitesi aşılmaz ve GNN alarm üretmez. Dashboard stres modunda darboğaz elleçlemede değil, rampa kapasitesinde (K3) ortaya çıkar; bu, optimizasyon katmanı tarafından uyarı olarak gösterilir.
 
 ---
 

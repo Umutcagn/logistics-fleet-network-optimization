@@ -1,10 +1,15 @@
 import json
 from pathlib import Path
 
+# Above this route count the pipeline switches to ALNS. benchmarks/solver_benchmark.py shows the ILP
+# solving the full 90-route network to optimality in ~0.02 s while ALNS is slower and 2-17% costlier,
+# so the ILP is used for every network size this project generates.
+ILP_ROUTE_LIMIT = 1000
+
 class FSMVRP_ILPSolver:
     """
     Exact Integer Linear Programming (ILP) Solver for Fleet Size & Mix Vehicle Routing Problem.
-    Uses Google OR-Tools CBC/SCIP solver. Used when route count < 50.
+    Uses Google OR-Tools CBC/SCIP solver. Used when route count < ILP_ROUTE_LIMIT.
     
     References:
     - Salhi et al. 2013 [6] (FSMVRP mathematical formulation)
@@ -115,6 +120,16 @@ class FSMVRP_ILPSolver:
         # Solve model
         solver.set_time_limit(10000)  # 10 seconds timeout
         status = solver.Solve()
+
+        if status not in (pywraplp.Solver.OPTIMAL, pywraplp.Solver.FEASIBLE):
+            # Usually K3: ramp slots cannot carry the demand. Never return an empty zero-cost plan.
+            solution = self._solve_greedy(demand_dict, distance_matrix, spot_costs)
+            solution["status"] = "INFEASIBLE_GREEDY_FALLBACK"
+            solution["warning"] = (
+                "ILP çözümsüz: rampa kapasitesi (K3) talebi karşılamaya yetmiyor. "
+                "Gösterilen plan K3 gözetilmeden üretilmiş sezgisel bir plandır."
+            )
+            return solution
 
         solution = {
             "status": "OPTIMAL" if status == pywraplp.Solver.OPTIMAL else ("FEASIBLE" if status == pywraplp.Solver.FEASIBLE else "FAILED"),

@@ -39,7 +39,7 @@ def test_alns_solver_large_network():
     spot_costs = {(r["origin_id"], r["dest_id"]): r["spot_cost_s_ij"] for _, r in single_day.iterrows()}
     
     sol = alns_solver.solve(demand_dict, data_gen.distance_matrix, spot_costs)
-    assert sol["status"] == "ALNS_OPTIMAL"
+    assert sol["status"] == "ALNS_HEURISTIC"
     assert sol["total_cost"] > 0
 
 def test_hub_consolidation():
@@ -54,3 +54,24 @@ def test_hub_consolidation():
     res = consolidator.evaluate_consolidation(demand_dict, data_gen.distance_matrix)
     assert "active_consolidations_count" in res
     assert "total_estimated_savings_tl" in res
+
+
+def test_ilp_infeasible_ramp_limit_returns_flagged_fallback_not_empty_plan():
+    data_gen = LogisticsDataGenerator()
+    ilp_solver = FSMVRP_ILPSolver()
+    # Trabzon has 3 ramps -> 18 daily dispatch slots and no truck ramp (max 1500 desi per vehicle)
+    demand_dict = {("TC_TRB", "TC_ANK"): 40000.0}
+    spot_costs = {("TC_TRB", "TC_ANK"): 9000.0}
+
+    sol = ilp_solver.solve(demand_dict, data_gen.distance_matrix, spot_costs)
+    assert sol["status"] == "INFEASIBLE_GREEDY_FALLBACK"
+    assert "warning" in sol
+    assert sol["total_cost"] > 0
+    assert sol["assignments"]["TC_TRB->TC_ANK"]["assigned_capacity_desi"] >= 40000.0
+
+
+def test_pipeline_uses_exact_ilp_for_full_network():
+    from run_pipeline import run_full_pipeline
+
+    data = run_full_pipeline(num_days=30, verbose=False)
+    assert data["opt_solution"]["status"] == "OPTIMAL"

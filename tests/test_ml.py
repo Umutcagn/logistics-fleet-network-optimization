@@ -41,3 +41,40 @@ def test_meta_learner_weights():
     assert 0.0 <= meta.w1 <= 1.0
     assert 0.0 <= meta.w2 <= 1.0
     assert round(meta.w1 + meta.w2, 2) == 1.0
+
+
+def _split(num_days=30):
+    df_routes, _ = LogisticsDataGenerator().generate_time_series_data(num_days=num_days)
+    df_feat = FeatureEngineer().fit_transform(df_routes)
+    cutoff = df_feat["date"].max() - pd.Timedelta(days=5)
+    return df_feat[df_feat["date"] <= cutoff], df_feat[df_feat["date"] > cutoff]
+
+
+def test_lag_features_never_use_current_target():
+    df_routes, _ = LogisticsDataGenerator().generate_time_series_data(num_days=15)
+    df_feat = FeatureEngineer().fit_transform(df_routes)
+    first_days = df_feat.groupby("route_id").head(1)
+    assert first_days[["lag_1", "rolling_mean_7"]].isna().all().all()
+
+
+def test_lstm_is_day_ahead_and_does_not_see_its_own_target():
+    from src.ml.lstm_model import PyTorchLSTMForecaster
+
+    df_train, df_val = _split()
+    model = PyTorchLSTMForecaster(sequence_length=14, epochs=30).fit(df_train)
+    preds = model.predict(df_val)
+    assert len(preds) == len(df_val)
+
+    # Changing a row's own actual value must not change its forecast
+    last_day = df_val["date"] == df_val["date"].max()
+    tampered = df_val.copy()
+    tampered.loc[last_day, "actual_desi"] *= 10
+    assert np.allclose(preds[last_day.values], model.predict(tampered)[last_day.values])
+
+
+def test_lstm_beats_constant_floor():
+    from src.ml.lstm_model import PyTorchLSTMForecaster
+
+    df_train, df_val = _split()
+    preds = PyTorchLSTMForecaster(sequence_length=14).fit(df_train).predict(df_val)
+    assert calculate_wape(df_val["actual_desi"].values, preds) < 0.3

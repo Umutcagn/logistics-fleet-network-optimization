@@ -34,7 +34,7 @@ class StackingMetaLearner:
         best_wape = float('inf')
         
         # Grid search over weights w1 in [0.0, 1.0]
-        for w1_candidate in np.linspace(0.1, 0.9, 17):
+        for w1_candidate in np.linspace(0.0, 1.0, 21):
             w2_candidate = 1.0 - w1_candidate
             
             # Campaign boost bias for LightGBM if campaign flag set

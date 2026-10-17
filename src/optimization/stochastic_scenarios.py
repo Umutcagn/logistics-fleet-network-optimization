@@ -1,4 +1,4 @@
-from .fsmvrp_ilp import FSMVRP_ILPSolver
+from .fsmvrp_ilp import FSMVRP_ILPSolver, ILP_ROUTE_LIMIT
 from .alns_solver import ALNSSolver
 
 class StochasticScenarioOptimizer:
@@ -28,8 +28,7 @@ class StochasticScenarioOptimizer:
             for idx, (i, j) in enumerate(routes_list):
                 demand_dict[(i, j)] = float(preds[idx])
                 
-            # Select solver based on route count limit (50)
-            if len(routes_list) < 50:
+            if len(routes_list) < ILP_ROUTE_LIMIT:
                 sol = self.ilp_solver.solve(demand_dict, distance_matrix, spot_costs)
             else:
                 sol = self.alns_solver.solve(demand_dict, distance_matrix, spot_costs)

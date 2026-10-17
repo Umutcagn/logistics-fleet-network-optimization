@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from run_pipeline import run_full_pipeline
 from src.data.synthetic_data_generator import LogisticsDataGenerator
-from src.optimization.fsmvrp_ilp import FSMVRP_ILPSolver
+from src.optimization.fsmvrp_ilp import FSMVRP_ILPSolver, ILP_ROUTE_LIMIT
 from src.optimization.alns_solver import ALNSSolver
 from src.optimization.hub_consolidation import HubConsolidator
 from src.gnn.bottleneck_gnn import GNNBottleneckDetector
@@ -358,7 +358,7 @@ def build_plotly_turkey_map(tcs_data, assignments_df, gnn_risk_scores):
     for tc in tcs_data:
         tc_id = tc["id"]
         lat, lon = tc["latitude"], tc["longitude"]
-        risk = gnn_risk_scores.get(tc_id, {}).get("risk_score", 0.12)
+        risk = gnn_risk_scores.get(tc_id, {}).get("risk_score", 0.0)
 
         if risk >= 0.70:
             color = "#ef4444"
@@ -496,7 +496,7 @@ def get_pydeck_chart(tcs_data, assignments_df, gnn_risk_scores):
         tc_id = tc["id"]
         lat, lon = tc["latitude"], tc["longitude"]
         tc_coords[tc_id] = (lat, lon)
-        risk = gnn_risk_scores.get(tc_id, {}).get("risk_score", 0.1)
+        risk = gnn_risk_scores.get(tc_id, {}).get("risk_score", 0.0)
         
         if risk >= 0.70:
             color = [239, 68, 68, 235]
@@ -720,7 +720,7 @@ def render_interactive_3d_hub_map(tcs_data, opt_sol, gnn_risk_scores):
         hub_routes.setdefault(orig, []).append({
             "dest": dest,
             "demand": int(round(details.get("demand_desi", 0))),
-            "fill": round(details.get("fill_rate_pct", 85.0), 1),
+            "fill": round(details.get("fill_rate_pct", 0.0), 1),
             "spot": int(details.get("spot_vehicles", 0)),
             "cost": int(round(details.get("route_cost_tl", 0)))
         })
@@ -730,7 +730,7 @@ def render_interactive_3d_hub_map(tcs_data, opt_sol, gnn_risk_scores):
     for tc in tcs_data:
         tc_id = tc["id"]
         tc_lookup[tc_id] = (tc["longitude"], tc["latitude"])
-        risk = float(gnn_risk_scores.get(tc_id, {}).get("risk_score", 0.12))
+        risk = float(gnn_risk_scores.get(tc_id, {}).get("risk_score", 0.0))
         u_info = tc_util.get(tc_id, {})
         ramps = tc["ramps"]
         cap_h = tc["hourly_handling_capacity"]
@@ -738,7 +738,7 @@ def render_interactive_3d_hub_map(tcs_data, opt_sol, gnn_risk_scores):
             "Bölgesel Ana Merkez" if cap_h >= 7000 else "Bölge Transfer Merkezi"
         )
         out_list = sorted(hub_routes.get(tc_id, []), key=lambda x: x["demand"], reverse=True)
-        avg_hub_fill = round(sum(x["fill"] for x in out_list) / len(out_list), 1) if out_list else 86.5
+        avg_hub_fill = round(sum(x["fill"] for x in out_list) / len(out_list), 1) if out_list else 0.0
         total_hub_spot = sum(x["spot"] for x in out_list)
 
         hubs_payload.append({
@@ -755,7 +755,7 @@ def render_interactive_3d_hub_map(tcs_data, opt_sol, gnn_risk_scores):
             "stability_pct": round((1.0 - risk) * 100, 1),
             "dispatched": u_info.get("dispatched_vehicles", 0),
             "outbound_desi": int(round(u_info.get("outbound_desi", 0.0))),
-            "k4_pct": min(100.0, round(u_info.get("k4_utilization_pct", 35.0), 1)),
+            "k4_pct": min(100.0, round(u_info.get("k4_utilization_pct", 0.0), 1)),
             "k5_pct": min(100.0, avg_hub_fill),
             "spot_count": total_hub_spot,
             "ramp_pct": min(100, int((ramps / 15.0) * 100)),
@@ -776,7 +776,7 @@ def render_interactive_3d_hub_map(tcs_data, opt_sol, gnn_risk_scores):
                 "coords": [[lon0, lat0], [(lon0 + lon1) / 2.0, (lat0 + lat1) / 2.0 + 0.32], [lon1, lat1]],
                 "demand": details.get("demand_desi", 0),
                 "spot": details.get("spot_vehicles", 0),
-                "fill": details.get("fill_rate_pct", 85.0)
+                "fill": details.get("fill_rate_pct", 0.0)
             })
 
     hubs_json = json.dumps(hubs_payload, ensure_ascii=False)
@@ -1545,30 +1545,21 @@ def main():
                     custom_spot[(orig, dest)] = round((2800.0 + dist * 12.0) * 1.40, 2)
                 ilp = FSMVRP_ILPSolver()
                 alns = ALNSSolver()
-                data["opt_solution"] = ilp.solve(custom_demand, data_gen.distance_matrix, custom_spot) if len(custom_demand) < 50 else alns.solve(custom_demand, data_gen.distance_matrix, custom_spot)
+                data["opt_solution"] = ilp.solve(custom_demand, data_gen.distance_matrix, custom_spot) if len(custom_demand) < ILP_ROUTE_LIMIT else alns.solve(custom_demand, data_gen.distance_matrix, custom_spot)
                 data["consolidation"] = HubConsolidator(data_gen.vehicle_types).evaluate_consolidation(custom_demand, data_gen.distance_matrix)
                 st.sidebar.success(f"✅ Özel CSV ({len(custom_demand)} hat) optimize edildi!")
         except Exception as e:
             st.sidebar.warning(f"CSV işlenirken uyarı: {e}")
 
     if is_stress_test:
-        opt_sol = data["opt_solution"]
-        opt_sol["total_spot_vehicles"] = 0
-        fill_list = []
-        for r_key, item in opt_sol["assignments"].items():
-            item["demand_desi"] = round(item["demand_desi"] * 3.0, 1)
-            extra_spot = max(1, int(item["demand_desi"] // 1500))
-            item["spot_vehicles"] = extra_spot
-            opt_sol["total_spot_vehicles"] += extra_spot
-            cap = item.get("assigned_capacity_desi", 0) + extra_spot * 1500
-            item["assigned_capacity_desi"] = cap
-            item["fill_rate_pct"] = round(min(100.0, (item["demand_desi"] / max(1, cap)) * 100.0), 1)
-            item["route_cost_tl"] = round(item.get("route_cost_tl", 4000.0) * 2.8, 2)
-            fill_list.append(item["fill_rate_pct"])
-        
-        opt_sol["total_cost"] = round(opt_sol["total_cost"] * 2.8, 2)
-        opt_sol["avg_fill_rate_pct"] = round(sum(fill_list) / len(fill_list), 1) if fill_list else 94.2
-        
+        # Re-optimize the fleet plan under 3x route demand
+        opt_in = data["opt_inputs"]
+        stressed_demand = {route: desi * 3.0 for route, desi in opt_in["demand"].items()}
+        solver = FSMVRP_ILPSolver() if len(stressed_demand) < ILP_ROUTE_LIMIT else ALNSSolver()
+        data["opt_solution"] = solver.solve(stressed_demand, data_gen.distance_matrix, opt_in["spot_costs"])
+        if data["opt_solution"].get("warning"):
+            st.sidebar.warning(data["opt_solution"]["warning"])
+
         # Re-score the network with the GNN under 3x incoming volume
         gnn_in = data["gnn_inputs"]
         stressed_incoming = {tc_id: desi * 3.0 for tc_id, desi in gnn_in["incoming"].items()}
@@ -1587,12 +1578,13 @@ def main():
             {
                 "action_id": "ACT_SPOT_BUDGET_EXCEEDED",
                 "type": "CRITICAL_SPOT_USAGE",
-                "description": "3x Talep patlaması nedeniyle spot araç filosu devreye alındı. Ek kiralama bütçesi onayı gereklidir.",
+                "description": f"3x talep senaryosunda {data['opt_solution']['total_spot_vehicles']} spot araç gerekiyor. Ek kiralama bütçesi onayı gereklidir.",
                 "status": "WAITING_HUMAN_APPROVAL"
             }
         ]
 
     val_wape = data["val_wape"]
+    model_wapes = data["model_wapes"]
     meta = data["meta_learner"]
     opt_sol = data["opt_solution"]
     cons = data["consolidation"]
@@ -1638,7 +1630,7 @@ def main():
     <div class="kpi-container">
         <div class="kpi-card">
             <div class="kpi-header">
-                <div class="kpi-title">Validasyon WAPE</div>
+                <div class="kpi-title">Holdout WAPE</div>
                 <div class="kpi-icon">🎯</div>
             </div>
             <div class="kpi-value">%{val_wape * 100:.2f}</div>
@@ -1749,7 +1741,11 @@ def main():
                 Tahmin çıktısını ($\\hat{{D}}_{{ijt}}$) doğrudan optimizasyon modelinin sağ taraf kısıtına (K1) besleyen hibrit mimari:<br/><br/>
                 • <b>LightGBM Ağırlığı ($w_1$):</b> <code>{meta.w1:.2f}</code><br/>
                 • <b>PyTorch LSTM Ağırlığı ($w_2$):</b> <code>{meta.w2:.2f}</code><br/>
-                • <b>Validasyon WAPE Skoru:</b> <code>%{val_wape * 100:.2f}</code>
+                • <b>Holdout WAPE (son 2 gün):</b> <code>%{val_wape * 100:.2f}</code><br/><br/>
+                Aynı holdout günlerinde tekil modeller:<br/>
+                • LightGBM: <code>%{model_wapes['lightgbm'] * 100:.2f}</code><br/>
+                • LSTM: <code>%{model_wapes['lstm'] * 100:.2f}</code><br/>
+                • Naif (dünün değeri): <code>%{model_wapes['naive_lag_1'] * 100:.2f}</code>
             </div>
             """, unsafe_allow_html=True)
 
@@ -1761,18 +1757,18 @@ def main():
 
         with c2:
             sub_ts = df_routes[(df_routes["origin_id"] == sel_orig) & (df_routes["dest_id"] == sel_dest)].sort_values("date").copy()
-            sub_ts["ensemble_forecast"] = sub_ts["actual_desi"].rolling(3, min_periods=1).mean() * 0.98 + np.random.normal(0, 25, len(sub_ts))
-            sub_ts["upper_bound"] = sub_ts["ensemble_forecast"] * 1.12
-            sub_ts["lower_bound"] = sub_ts["ensemble_forecast"] * 0.88
+            df_fc = data["df_forecast"]
+            sub_fc = df_fc[(df_fc["origin_id"] == sel_orig) & (df_fc["dest_id"] == sel_dest)].sort_values("date")
+            band = meta.generate_prediction_intervals(sub_fc["ensemble_pred"].values)
 
             fig_ts = go.Figure()
             fig_ts.add_trace(go.Scatter(
-                x=pd.concat([sub_ts["date"], sub_ts["date"][::-1]]),
-                y=pd.concat([sub_ts["upper_bound"], sub_ts["lower_bound"][::-1]]),
+                x=pd.concat([sub_fc["date"], sub_fc["date"][::-1]]),
+                y=np.concatenate([band["pessimistic"], band["optimistic"][::-1]]),
                 fill="toself",
                 fillcolor="rgba(56, 189, 248, 0.12)",
                 line=dict(color="rgba(255,255,255,0)"),
-                name="%90 Güven Aralığı (Stokastik Band)"
+                name="P10–P90 Senaryo Bandı (±%12 std varsayımı)"
             ))
             fig_ts.add_trace(go.Scatter(
                 x=sub_ts["date"], y=sub_ts["actual_desi"],
@@ -1780,8 +1776,8 @@ def main():
                 line=dict(color="#94a3b8", width=1.8, dash="dot")
             ))
             fig_ts.add_trace(go.Scatter(
-                x=sub_ts["date"], y=sub_ts["ensemble_forecast"],
-                mode="lines+markers", name="Ensemble Tahmin (LGBM+LSTM)",
+                x=sub_fc["date"], y=sub_fc["ensemble_pred"],
+                mode="lines+markers", name="Ensemble Tahmin (LGBM+LSTM, validasyon günleri)",
                 line=dict(color="#38bdf8", width=2.8)
             ))
             fig_ts.update_layout(

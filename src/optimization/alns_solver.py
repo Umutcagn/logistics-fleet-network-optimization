@@ -242,7 +242,7 @@ class ALNSSolver:
             }
 
         return {
-            "status": "ALNS_OPTIMAL",
+            "status": "ALNS_HEURISTIC",
             "total_cost": round(best_cost, 2),
             "assignments": assignments,
             "total_fleet_vehicles": total_fleet,
