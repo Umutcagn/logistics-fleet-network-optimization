@@ -7,6 +7,8 @@
 [![OR-Tools](https://img.shields.io/badge/OR--Tools-SCIP%2FCBC-blue)](https://developers.google.com/optimization)
 [![Tests](https://github.com/Umutcagn/logistics-fleet-network-optimization/actions/workflows/tests.yml/badge.svg)](https://github.com/Umutcagn/logistics-fleet-network-optimization/actions/workflows/tests.yml)
 
+**🚀 Canlı demo:** https://logistics-optimizer1710.streamlit.app/ (ilk açılışta modeller eğitildiği için yükleme 10–30 sn sürebilir)
+
 > **Entegre Makine Öğrenmesi (LightGBM + PyTorch LSTM), FSMVRP Rota Optimizasyonu (Google OR-Tools ILP / ALNS), PyTorch GNN Darboğaz Erken Uyarısı ve Sub-Agent Yönetişim Paneli.**
 
 ---
