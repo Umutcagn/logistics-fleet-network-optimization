@@ -1,15 +1,32 @@
+import json
+import warnings
+from pathlib import Path
+
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
-import networkx as nx
-import json
-from pathlib import Path
+
+WEIGHTS_PATH = Path(__file__).parent / "bottleneck_gnn_weights.pt"
+SHIFT_HOURS = 12
+
+
+def build_node_features(transfer_centers, backlogs_wit: dict, incoming_desi_dict: dict) -> np.ndarray:
+    """Normalized node features shared by training and inference: [backlog, incoming, load ratio, ramps]."""
+    features = []
+    for tc in transfer_centers:
+        wit = backlogs_wit.get(tc["id"], 0.0)
+        incoming = incoming_desi_dict.get(tc["id"], 0.0)
+        max_cap = tc["hourly_handling_capacity"] * SHIFT_HOURS
+        proc_ratio = min(2.0, (incoming + wit) / max(1.0, max_cap))
+        features.append([wit / 5000.0, incoming / 20000.0, proc_ratio, float(tc["ramps"]) / 15.0])
+    return np.asarray(features, dtype=np.float32)
+
 
 class GraphNeuralNetworkModel(nn.Module):
     """
     Message Passing Graph Neural Network for Bottleneck Detection.
     Nodes: Transfer Centers (features: [backlog Wit, incoming desi, processing ratio, ramp count])
-    Edges: Direct logistics routes (features: [distance, allocated capacity])
+    Edges: Direct logistics routes (unweighted, undirected adjacency)
     """
     def __init__(self, node_in_dim=4, hidden_dim=16):
         super(GraphNeuralNetworkModel, self).__init__()
@@ -26,26 +43,17 @@ class GraphNeuralNetworkModel(nn.Module):
         )
 
     def forward(self, node_features, adj_matrix):
+        """Accepts a single graph (N, F) / (N, N) or a batch (B, N, F) / (B, N, N)."""
         # Step 1: Transform node features
-        h = self.node_mlp(node_features)  # (N, hidden_dim)
-        
-        # Step 2: Neighbor aggregation (Message Passing)
-        N = h.size(0)
-        risk_scores = []
-        
-        for i in range(N):
-            # Find neighbors of node i
-            neighbors_idx = (adj_matrix[i] > 0).nonzero(as_tuple=True)[0]
-            if len(neighbors_idx) == 0:
-                h_neigh = h[i]
-            else:
-                h_neigh = torch.mean(h[neighbors_idx], dim=0)
-                
-            combined = torch.cat([h[i], h_neigh], dim=0)
-            risk = self.message_agg(combined)
-            risk_scores.append(risk)
-            
-        return torch.stack(risk_scores).squeeze(-1)
+        h = self.node_mlp(node_features)  # (..., N, hidden_dim)
+
+        # Step 2: Mean neighbor aggregation (Message Passing); isolated nodes use their own embedding
+        adj = (adj_matrix > 0).float()
+        deg = adj.sum(dim=-1, keepdim=True)
+        h_neigh = torch.where(deg > 0, (adj @ h) / deg.clamp(min=1.0), h)
+
+        combined = torch.cat([h, h_neigh], dim=-1)
+        return self.message_agg(combined).squeeze(-1)
 
 class GNNBottleneckDetector:
     """
@@ -54,7 +62,7 @@ class GNNBottleneckDetector:
     
     Reference: Zhang & Pan (2024) MARLHOSA network analysis principle
     """
-    def __init__(self, network_config_path=None, seed=42):
+    def __init__(self, network_config_path=None, seed=42, weights_path=WEIGHTS_PATH):
         if network_config_path is None:
             network_config_path = Path(__file__).parent.parent / "data" / "sample_network.json"
             
@@ -65,9 +73,13 @@ class GNNBottleneckDetector:
         self.tc_ids = [tc["id"] for tc in self.transfer_centers]
         self.tc_idx_map = {tc_id: i for i, tc_id in enumerate(self.tc_ids)}
         
-        # NOTE: weights are not trained yet; seeding keeps the scores reproducible across runs
         torch.manual_seed(seed)
         self.model = GraphNeuralNetworkModel(node_in_dim=4, hidden_dim=16)
+        self.is_trained = weights_path is not None and Path(weights_path).exists()
+        if self.is_trained:
+            self.model.load_state_dict(torch.load(weights_path, weights_only=True))
+        else:
+            warnings.warn("GNN weights not found; scores come from an untrained model. Run `python -m src.gnn.train_gnn`.")
 
     def _build_adj_matrix(self, routes_list):
         N = len(self.tc_ids)
@@ -83,26 +95,7 @@ class GNNBottleneckDetector:
         """
         Evaluates risk score [0.0, 1.0] for every Transfer Center node.
         """
-        N = len(self.tc_ids)
-        node_features = []
-        
-        for tc in self.transfer_centers:
-            tc_id = tc["id"]
-            wit = backlogs_wit.get(tc_id, 0.0)
-            incoming = incoming_desi_dict.get(tc_id, 0.0)
-            max_cap = tc["hourly_handling_capacity"] * 12
-            proc_ratio = min(2.0, (incoming + wit) / max(1.0, max_cap))
-            ramps = float(tc["ramps"])
-            
-            # Normalize features
-            node_features.append([
-                wit / 5000.0,
-                incoming / 20000.0,
-                proc_ratio,
-                ramps / 15.0
-            ])
-            
-        x_tensor = torch.tensor(node_features, dtype=torch.float32)
+        x_tensor = torch.from_numpy(build_node_features(self.transfer_centers, backlogs_wit, incoming_desi_dict))
         adj_tensor = self._build_adj_matrix(routes_list)
 
         self.model.eval()
@@ -138,5 +131,6 @@ class GNNBottleneckDetector:
 
         return {
             "node_risk_scores": results,
-            "high_risk_alerts": alerts
+            "high_risk_alerts": alerts,
+            "model_trained": self.is_trained
         }

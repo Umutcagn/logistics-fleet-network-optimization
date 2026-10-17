@@ -19,6 +19,7 @@ from src.data.synthetic_data_generator import LogisticsDataGenerator
 from src.optimization.fsmvrp_ilp import FSMVRP_ILPSolver
 from src.optimization.alns_solver import ALNSSolver
 from src.optimization.hub_consolidation import HubConsolidator
+from src.gnn.bottleneck_gnn import GNNBottleneckDetector
 
 
 def inject_custom_styles():
@@ -1568,36 +1569,21 @@ def main():
         opt_sol["total_cost"] = round(opt_sol["total_cost"] * 2.8, 2)
         opt_sol["avg_fill_rate_pct"] = round(sum(fill_list) / len(fill_list), 1) if fill_list else 94.2
         
-        data["gnn_result"]["high_risk_alerts"] = [
-            {
-                "tc_id": "TC_IST_AN",
-                "name": "İstanbul Anadolu TM",
-                "risk_score": 0.92,
-                "backlog_wit": 14500.0,
-                "warning": "Transfer center İstanbul Anadolu TM has severe congestion risk! (92.0%)"
-            },
-            {
-                "tc_id": "TC_ANK",
-                "name": "Ankara TM",
-                "risk_score": 0.81,
-                "backlog_wit": 9800.0,
-                "warning": "Transfer center Ankara TM has severe congestion risk! (81.0%)"
-            }
-        ]
-        
-        for k in data["gnn_result"]["node_risk_scores"]:
-            if k in ["TC_IST_AN", "TC_ANK"]:
-                data["gnn_result"]["node_risk_scores"][k]["risk_score"] = 0.92 if k == "TC_IST_AN" else 0.81
-                data["gnn_result"]["node_risk_scores"][k]["status"] = "CRITICAL_BOTTLENECK"
-                
+        # Re-score the network with the GNN under 3x incoming volume
+        gnn_in = data["gnn_inputs"]
+        stressed_incoming = {tc_id: desi * 3.0 for tc_id, desi in gnn_in["incoming"].items()}
+        data["gnn_result"] = GNNBottleneckDetector().detect_bottlenecks(gnn_in["backlogs"], stressed_incoming, gnn_in["routes"])
+
         data["coordinator_report"]["requires_human_approval"] = True
         data["coordinator_report"]["pending_approvals"] = [
             {
-                "action_id": "ACT_STRESS_REROUTE_IST",
+                "action_id": f"ACT_STRESS_REROUTE_{alert['tc_id']}",
                 "type": "CRITICAL_REROUTE",
-                "description": "İstanbul Anadolu TM %92 kilitlenme riskine ulaştı! Yükün %40'ı Bursa TM'ye aktarılmalıdır.",
+                "description": f"{alert['name']} %{alert['risk_score'] * 100:.0f} darboğaz riski taşıyor. Yük komşu merkezlere ALNS ile kaydırılmalıdır.",
                 "status": "WAITING_HUMAN_APPROVAL"
-            },
+            }
+            for alert in data["gnn_result"]["high_risk_alerts"]
+        ] + [
             {
                 "action_id": "ACT_SPOT_BUDGET_EXCEEDED",
                 "type": "CRITICAL_SPOT_USAGE",

@@ -1,0 +1,26 @@
+{
+  "label_rule": "load_i + 0.5 * mean_neighbors(max(0, load_j - 1)) >= 1",
+  "train_scenarios": 6000,
+  "val_scenarios": 1500,
+  "test_scenarios": 2000,
+  "test_nodes": 20000,
+  "test_positive_rate": 0.3457,
+  "spillover_only_positives": 977,
+  "best_val_bce": 0.0279,
+  "gnn": {
+    "accuracy": 0.9901,
+    "precision": 0.9895,
+    "recall": 0.9819,
+    "f1": 0.9857
+  },
+  "baseline_node_only_threshold": {
+    "accuracy": 0.9512,
+    "precision": 1.0,
+    "recall": 0.8587,
+    "f1": 0.924
+  },
+  "spillover_recall": {
+    "gnn": 0.9028,
+    "baseline_node_only_threshold": 0.0
+  }
+}

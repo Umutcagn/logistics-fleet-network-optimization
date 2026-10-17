@@ -111,7 +111,7 @@ def run_full_pipeline(num_days=30, verbose=True):
         print(f"   -> Beklenen Stokastik Maliyet (Expected Cost): {stoch_res['expected_cost']:,.2f} TL")
 
     # 5. GNN Bottleneck Early Warning Layer
-    if verbose: print("\n[6/7] PyTorch Geometric GNN Darboğaz Erken Uyarı Katmanı Değerlendiriliyor...")
+    if verbose: print("\n[6/7] PyTorch GNN Darboğaz Erken Uyarı Katmanı Değerlendiriliyor...")
     gnn_detector = GNNBottleneckDetector()
     incoming_dict = target_day_df.groupby("dest_id")["ensemble_pred"].sum().to_dict()
     gnn_res = gnn_detector.detect_bottlenecks(current_backlogs, incoming_dict, routes_list)
@@ -152,6 +152,7 @@ def run_full_pipeline(num_days=30, verbose=True):
         "consolidation": cons_res,
         "stochastic": stoch_res,
         "gnn_result": gnn_res,
+        "gnn_inputs": {"backlogs": current_backlogs, "incoming": incoming_dict, "routes": routes_list},
         "coordinator_report": coordinator_report,
         "data_generator": data_gen
     }

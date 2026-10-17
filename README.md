@@ -7,7 +7,7 @@
 [![OR-Tools](https://img.shields.io/badge/OR--Tools-SCIP%2FCBC-blue)](https://developers.google.com/optimization)
 [![Tests](https://github.com/Umutcagn/logistics-fleet-network-optimization/actions/workflows/tests.yml/badge.svg)](https://github.com/Umutcagn/logistics-fleet-network-optimization/actions/workflows/tests.yml)
 
-> **Entegre Makine Öğrenmesi (LightGBM + PyTorch LSTM), FSMVRP Rota Optimizasyonu (Google OR-Tools ILP / ALNS), PyTorch tabanlı GNN Darboğaz Erken Uyarısı (prototip) ve Sub-Agent Yönetişim Paneli.**
+> **Entegre Makine Öğrenmesi (LightGBM + PyTorch LSTM), FSMVRP Rota Optimizasyonu (Google OR-Tools ILP / ALNS), PyTorch GNN Darboğaz Erken Uyarısı ve Sub-Agent Yönetişim Paneli.**
 
 ---
 
@@ -41,7 +41,7 @@ graph TD
     E -->|>= 50 Güzergah| G[ALNS Heuristic Solver]
     F --> H[Spot / Filo Araç Ataması & Rampa / Kapasite Kısıtları]
     G --> H
-    H --> I[GNN Darboğaz Erken Uyarı Katmanı - prototip]
+    H --> I[PyTorch GNN Darboğaz Erken Uyarı Katmanı]
     I --> J[Sub-Agent Koordinasyon Sistemi]
     J --> K[Streamlit Karar Destek Dashboard & İnsan Onayı]
 ```
@@ -73,14 +73,14 @@ $$\min Z = \sum_{(k,m)} F_m \cdot Y_{mk} + \sum_{(i,j,k)} D_{ij} \cdot C_k \cdot
 
 - **Makine Öğrenmesi (ML)**: LightGBM (kısa vadeli kampanya etkileri) + PyTorch LSTM (30 günlük sliding window) + Stacking MetaLearner (WAPE bazlı dinamik ağırlıklandırma).
 - **Rota Optimizasyonu (FSMVRP)**: Google OR-Tools ILP SCIP/CBC Solver + Adaptive Large Neighborhood Search (ALNS) Heuristic.
-- **Graf Sinir Ağı (GNN)**: Düz PyTorch ile yazılmış, ortalama-komşu mesaj iletimli Transfer Merkezleri darboğaz erken uyarı modülü (MARLHOSA prensibi). ⚠️ Model ağırlıkları henüz eğitilmemiştir; skorlar sabit seed ile tekrarlanabilir ancak şu an için gerçek bir tahmin değildir.
+- **Graf Sinir Ağı (GNN)**: Düz PyTorch ile yazılmış, ortalama-komşu mesaj iletimli Transfer Merkezleri darboğaz erken uyarı modeli (MARLHOSA prensibi). Sentetik ağ senaryolarıyla eğitilmiştir (bkz. [GNN Eğitimi](#-gnn-eğitimi-ve-değerlendirme)).
 - **Sub-Agent & Human-in-the-Loop**: 3 uzman alt ajan (Talep, Optimizasyon, GNN) ve kritik kararlarda lojistik sorumlusu onay paneli.
 - **Arayüz**: Streamlit etkileşimli kontrol paneli.
 
 ### ⚠️ Bilinen Sınırlamalar
 - Veriler sentetiktir (`src/data/synthetic_data_generator.py`); sonuçlar gerçek operasyon verisiyle doğrulanmamıştır.
 - `ortools` yüklü değilse ILP yerine sezgisel (heuristic) çözücüye, `lightgbm` yüklü değilse scikit-learn `HistGradientBoostingRegressor`'a sessizce geçilir.
-- GNN katmanı eğitilmemiş bir prototiptir (bkz. yukarı).
+- GNN, gerçek darboğaz kayıtlarıyla değil, açık bir kapasite/taşma kuralıyla etiketlenmiş sentetik senaryolarla eğitilmiştir; yani bu kuralı öğrenir, gerçek operasyondan öğrenilmiş bir model değildir.
 
 ---
 
@@ -109,6 +109,31 @@ python run_pipeline.py
 streamlit run app.py
 ```
 Tarayıcınızda `http://localhost:8501` adresine gidin.
+
+---
+
+## 🧠 GNN Eğitimi ve Değerlendirme
+
+Gerçek etiketli darboğaz verisi olmadığından etiketler açık bir kuraldan üretilir. Bir transfer merkezi, kendi 12 saatlik yük oranı ile aşırı yüklü komşularından taşan yükün toplamı kapasitesine ulaştığında darboğaz sayılır:
+
+$$\text{load}_i + 0.5 \cdot \frac{1}{|N(i)|}\sum_{j \in N(i)} \max(0, \text{load}_j - 1) \ge 1$$
+
+Model; gerçek 10 transfer merkezi üzerinde rastgele yük seviyeleri ve rastgele güzergah grafları içeren 6.000 eğitim, 1.500 doğrulama ve 2.000 test senaryosuyla eğitilir (~7 sn, CPU):
+
+```bash
+python -m src.gnn.train_gnn   # ağırlıklar: src/gnn/bottleneck_gnn_weights.pt, metrikler: src/gnn/training_metrics.json
+```
+
+Test seti (20.000 düğüm) sonuçları, komşuları görmeyen eşik kuralıyla (`load ≥ 1`) karşılaştırmalı:
+
+| Model | Doğruluk | Kesinlik | Duyarlılık | F1 | Yalnızca komşu taşmasından doğan darboğazları yakalama (977 düğüm) |
+|---|---|---|---|---|---|
+| Düğüm eşiği (komşusuz) | 0.951 | 1.000 | 0.859 | 0.924 | %0 |
+| **GNN** | **0.990** | **0.990** | **0.982** | **0.986** | **%90.3** |
+
+GNN'in kazancı tamamen graf yapısından gelir: yalnızca kendi yüküne bakan bir kural, komşu merkezlerden taşan yükü göremez.
+
+> Not: Pipeline'ın ürettiği mevcut sentetik talepte merkezlerin yük oranı %6–24 arasındadır; talep 3 katına çıksa bile (dashboard stres modu) kapasite aşılmaz ve model alarm üretmez.
 
 ---
 
